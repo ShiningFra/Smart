@@ -44,7 +44,7 @@ bot.onText(/\/startsaving(@FGameFra_bot)?/, (msg) => {
     currentQuestions = [];
     currentQuestionIndex = 0;
 
-    bot.sendMessage(msg.chat.id, "📝 Enregistrement des questions commencé. Envoyez votre question.");
+    bot.sendMessage(msg.chat.id, "📝 Enregistrement des questions commencé. Envoyez votre question en privé.");
 });
 
 // Commande pour arrêter l'enregistrement des questions
@@ -69,7 +69,8 @@ bot.on('message', (msg) => {
     if (isSaving && gameMasters.has(userId.toString()) && msg.text && !msg.text.startsWith('/')) {
         const question = msg.text;
         currentQuestions.push(question);
-        bot.sendMessage(msg.chat.id, `✅ Question sauvegardée : ${question}`);
+        bot.sendMessage(userId, `✅ Question sauvegardée : ${question}`);
+        bot.sendMessage(userId, "👉 Veuillez envoyer la prochaine question en privé.");
     }
 
     // Si le quiz est en cours, poser la question suivante
