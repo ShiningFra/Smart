@@ -91,11 +91,11 @@ bot.on('message', (msg) => {
     }
 
     // Si le quiz est en cours, poser la question suivante
-    if (onQuiz && currentQuestionIndex < currentQuestions.length) {
+    /*if (onQuiz && currentQuestionIndex < currentQuestions.length) {
         const questionToAsk = currentQuestions[currentQuestionIndex];
         bot.sendMessage(msg.chat.id, `🔍 Question à poser : ${questionToAsk}`);
         currentQuestionIndex++;
-    }
+    }*/
 });
 
 // Commande pour commencer le quiz
