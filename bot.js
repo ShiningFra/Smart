@@ -1,7 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
-const token = process.env.TELEGRAM_BOT_TOKEN;
+const token = process.env.TELEGRAM_BOT_TOKEN1;
 const bot = new TelegramBot(token, { polling: true });
 
 const users = {}; // Stockage des utilisateurs et leurs stats
@@ -11,7 +11,7 @@ let onQuiz = 0;
 const waitingForQuestion = new Set(); // Stockage des Game Masters en attente d'une question
 
 // Récupérer l'ID du Game Master depuis .env
-const defaultGameMasterId = process.env.DEFAULT_GAME_MASTER_ID;
+const defaultGameMasterId = process.env.DEFAULT_GAME_MASTER_ID1;
 
 // Ajouter le Game Master par défaut
 if (defaultGameMasterId) {
