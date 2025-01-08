@@ -3,9 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const fileType = require('file-type');
+require('dotenv').config();
 
 // Remplace 'YOUR_TELEGRAM_BOT_TOKEN' par le token que tu as reçu de BotFather
-const token = '7884169550:AAFmOQ3tqa12tdO0EZ5_XWLQpkMaL2EhI60';
+const token = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
 let messageAuthors = {}; // Stockage des auteurs des messages
