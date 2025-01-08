@@ -61,35 +61,18 @@ bot.onText(/\/stopsaving(@FGameFra_bot)?/, (msg) => {
     bot.sendMessage(msg.chat.id, "✅ Enregistrement des questions arrêté. Questions sauvegardées :\n" + currentQuestions.join('\n'));
 });
 
-// Commande pour ajouter la prochaine question
-bot.onText(/\/next(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut ajouter une question.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    if (!isSaving) {
-        return bot.sendMessage(msg.chat.id, "🚫 Aucun enregistrement en cours. Utilisez /startsaving pour commencer.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    bot.sendMessage(msg.chat.id, "👉 Veuillez envoyer la prochaine question.");
-});
-
 // Écoute des messages pour enregistrer les questions
 bot.on('message', (msg) => {
     const userId = msg.from.id;
 
-    if (isSaving && gameMasters.has(userId.toString())) {
+    // Ignore les commandes et ne sauvegarde que les messages de texte normaux
+    if (isSaving && gameMasters.has(userId.toString()) && msg.text && !msg.text.startsWith('/')) {
         const question = msg.text;
         currentQuestions.push(question);
         bot.sendMessage(msg.chat.id, `✅ Question sauvegardée : ${question}`);
     }
 
+    // Si le quiz est en cours, poser la question suivante
     if (onQuiz && currentQuestionIndex < currentQuestions.length) {
         const questionToAsk = currentQuestions[currentQuestionIndex];
         bot.sendMessage(msg.chat.id, `🔍 Question à poser : ${questionToAsk}`);
@@ -119,6 +102,21 @@ bot.onText(/\/quiz(@FGameFra_bot)?/, (msg) => {
     onQuiz = true;
 
     bot.sendMessage(msg.chat.id, "🎉 Le quiz a commencé ! Utilisez /next pour passer à la question suivante.");
+});
+
+// Commande pour arrêter le quiz
+bot.onText(/\/stopquiz(@FGameFra_bot)?/, (msg) => {
+    const userId = msg.from.id;
+
+    if (!gameMasters.has(userId.toString())) {
+        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut arrêter le quiz.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    onQuiz = false; // Fin du quiz
+    currentQuestions = []; // Réinitialiser les questions
+    bot.sendMessage(msg.chat.id, "🛑 Le quiz a été arrêté. Merci d'avoir participé !");
 });
 
 // Commande pour valider une réponse
