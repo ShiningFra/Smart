@@ -7,6 +7,7 @@ const bot = new TelegramBot(token, { polling: true });
 const users = {}; // Stockage des utilisateurs et leurs stats
 const gameMasters = new Set(); // Stockage des Game Masters
 let currentQuiz = null; // Stockage du quiz actuel
+let onQuiz = 0;
 const waitingForQuestion = new Set(); // Stockage des Game Masters en attente d'une question
 
 // Récupérer l'ID du Game Master depuis .env
@@ -44,8 +45,9 @@ bot.onText(/\/quiz(@FGameFra_bot)?/, (msg) => {
             disable_web_page_preview: true
         });
     }
+onQuiz = 1;
 
-    bot.sendMessage(msg.chat.id, "Un quiz a été lancé ! Utilisez /question pour poser une question.")
+    bot.sendMessage(msg.chat.id, "Un quiz a été lancé ! Utilisez /question pour poser une question. (uniquement les Game Masters)")
         .then(sentMessage => {
             // Épingler le message
             bot.pinChatMessage(msg.chat.id, sentMessage.message_id).catch(err => {
@@ -64,7 +66,7 @@ bot.onText(/\/question(@FGameFra_bot)?/, (msg) => {
         });
     }
 
-    if (!currentQuiz) {
+    if (!onQuiz) {
         return bot.sendMessage(msg.chat.id, "Aucun quiz n'est en cours pour poser une question.", {
             reply_to_message_id: msg.message_id
         });
@@ -133,6 +135,7 @@ bot.onText(/\/end(@FGameFra_bot)?/, (msg) => {
             reply_to_message_id: msg.message_id
         });
     }
+onQuiz = 0;
 
     currentQuiz = null;
     bot.sendMessage(msg.chat.id, "Le quiz est terminé. Merci à tous d'avoir participé !", {
