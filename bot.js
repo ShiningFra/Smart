@@ -1,79 +1,65 @@
 const TelegramBot = require('node-telegram-bot-api');
-const token = '7635135897:AAHmj4Nmanh15Zavn5tnSqkdedRbRwH9zsU';  // Remplacez par votre token de bot
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+const fileType = require('file-type');
+
+// Remplace 'YOUR_TELEGRAM_BOT_TOKEN' par le token que tu as reçu de BotFather
+const token = '7884169550:AAFmOQ3tqa12tdO0EZ5_XWLQpkMaL2EhI60';
 const bot = new TelegramBot(token, { polling: true });
 
-// Commande pour démarrer la sélection des couples
-bot.onText(/\/chooseCouples/, async (msg) => {
-  const chatId = msg.chat.id;
+let messageAuthors = {}; // Stockage des auteurs des messages
 
-  try {
-    // Récupérer la liste des membres du groupe
-    const members = await getAllMembers(chatId);
-    if (members.length < 2) {
-      bot.sendMessage(chatId, 'Pas assez de membres dans le groupe pour former un couple.');
-      return;
+// Écoute tous les messages dans le groupe
+bot.on('message', (msg) => {
+    const chatId = msg.chat.id;
+
+    // Vérifie si le message provient d'un groupe
+    if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
+        const userId = msg.from.id;
+
+        // Stocke l'auteur du message
+        if (!messageAuthors[chatId]) {
+            messageAuthors[chatId] = new Set(); // Utiliser Set pour éviter les doublons
+        }
+        messageAuthors[chatId].add(userId);
     }
-
-    // Mélanger la liste des membres pour choisir au hasard
-    const shuffledMembers = members.sort(() => 0.5 - Math.random());
-
-    // Choisir les couples (en prenant deux membres à la fois)
-    const couples = [];
-    while (shuffledMembers.length >= 2) {
-      const first = shuffledMembers.pop();
-      const second = shuffledMembers.pop();
-      couples.push([first, second]);
-    }
-
-    // Envoyer les couples formés au groupe
-    let message = 'Voici les couples choisis au hasard :\n';
-    couples.forEach((couple, index) => {
-      message += `Couple ${index + 1}: @${getUserNameById(couple[0])} et @${getUserNameById(couple[1])}\n`;
-    });
-
-    bot.sendMessage(chatId, message);
-
-  } catch (error) {
-    console.error('Erreur lors de la récupération des membres:', error);
-    bot.sendMessage(chatId, 'Une erreur est survenue lors de la sélection des couples.');
-  }
 });
 
-// Fonction pour obtenir tous les membres du groupe
-async function getAllMembers(chatId) {
-  const members = [];
-  let offset = 0;
-  const limit = 200;  // Nombre maximum de membres récupérés à la fois
+// Commande pour taguer tous les auteurs
+bot.onText(/\/tag_all/, async (msg) => {
+    const chatId = msg.chat.id;
 
-  try {
-    // Récupérer les membres du groupe par lots
-    while (true) {
-      const chatMembers = await bot.getChatMembers(chatId, offset, limit);
-      if (chatMembers.length === 0) break;
-      
-      chatMembers.forEach(member => {
-        members.push(member.user.id);
-      });
+    if (messageAuthors[chatId]) {
+        const authors = Array.from(messageAuthors[chatId]);
+        const validAuthors = [];
 
-      // Mettre à jour l'offset pour obtenir les membres suivants
-      offset += chatMembers.length;
+        // Vérifie si chaque auteur est toujours membre du groupe
+        for (let authorId of authors) {
+            try {
+                const member = await bot.getChatMember(chatId, authorId);
+                if (member.status === 'member' || member.status === 'administrator' || member.status === 'creator') {
+                    validAuthors.push({ id: authorId, username: member.user.username || member.user.first_name });
+                }
+            } catch (error) {
+                console.error(`Erreur lors de la vérification de l'auteur ${authorId}:`, error);
+            }
+        }
+
+        // Taguer les membres valides avec leurs pseudos
+        if (validAuthors.length > 0) {
+            bot.sendMessage(chatId, "Voici tous les membres actifs depuis mon arrivée :");
+            const mentions = validAuthors.map(({ id, username }) => {
+                const displayName = username ? `@${username}` : username; // Utilise le pseudo ou le nom
+                return `<a href="tg://user?id=${id}">${displayName}</a>`;
+            }).join(', ');
+
+            const message = `${mentions}`;
+            await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+        } else {
+            bot.sendMessage(chatId, "Aucun auteur valide à taguer.");
+        }
+    } else {
+        bot.sendMessage(chatId, "Aucun auteur à taguer.");
     }
-  } catch (error) {
-    console.error('Erreur lors de la récupération des membres:', error);
-  }
-
-  return members;
-}
-
-// Fonction pour obtenir le nom d'utilisateur d'un membre par son ID
-async function getUserNameById(userId) {
-  try {
-    const user = await bot.getUserProfilePhotos(userId);
-    return user.username || 'utilisateur sans nom d\'utilisateur';
-  } catch (error) {
-    return 'utilisateur non trouvé';
-  }
-}
-
-// Démarre le bot
-console.log('Bot Telegram en ligne...');
+});
