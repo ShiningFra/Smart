@@ -64,6 +64,12 @@ bot.onText(/\/question(@FGameFra_bot)?/, (msg) => {
         });
     }
 
+    if (!currentQuiz) {
+        return bot.sendMessage(msg.chat.id, "Aucun quiz n'est en cours pour poser une question.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
     // Indiquer que le Game Master attend une question
     waitingForQuestion.add(userId);
     bot.sendMessage(msg.chat.id, "Veuillez envoyer votre question maintenant.");
@@ -149,6 +155,26 @@ bot.onText(/\/gamemasters(@FGameFra_bot)?/, (msg) => {
         reply_to_message_id: msg.message_id,
         disable_web_page_preview: true
     });
+});
+
+// Nouvelle commande pour poser une question sans lien avec un quiz
+bot.onText(/\/xtra(@FGameFra_bot)? (.+)/, (msg, match) => {
+    const userId = msg.from.id;
+
+    if (!gameMasters.has(userId.toString())) {
+        return bot.sendMessage(msg.chat.id, "Seul un Game Master peut poser une question.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    const question = match[2];
+    bot.sendMessage(msg.chat.id, `Question sans lien avec un quiz: ${question}`)
+        .then(sentMessage => {
+            // Épingler le message de question
+            bot.pinChatMessage(msg.chat.id, sentMessage.message_id).catch(err => {
+                console.error("Erreur lors de l'épinglage du message:", err);
+            });
+        });
 });
 
 // Fonction pour ajouter des points à un utilisateur
