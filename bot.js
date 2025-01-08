@@ -1,8 +1,4 @@
 const TelegramBot = require('node-telegram-bot-api');
-const fs = require('fs');
-const path = require('path');
-const axios = require('axios');
-const fileType = require('file-type');
 require('dotenv').config();
 
 // Remplace 'YOUR_TELEGRAM_BOT_TOKEN' par le token que tu as reçu de BotFather
@@ -27,8 +23,8 @@ bot.on('message', (msg) => {
     }
 });
 
-// Commande pour taguer tous les auteurs
-bot.onText(/\/tag_all/, async (msg) => {
+// Commande pour afficher tous les utilisateurs actifs
+bot.onText(/\/active_users/, async (msg) => {
     const chatId = msg.chat.id;
 
     if (messageAuthors[chatId]) {
@@ -40,27 +36,26 @@ bot.onText(/\/tag_all/, async (msg) => {
             try {
                 const member = await bot.getChatMember(chatId, authorId);
                 if (member.status === 'member' || member.status === 'administrator' || member.status === 'creator') {
-                    validAuthors.push({ id: authorId, username: member.user.username || member.user.first_name });
+                    validAuthors.push({ id: authorId, firstName: member.user.first_name });
                 }
             } catch (error) {
                 console.error(`Erreur lors de la vérification de l'auteur ${authorId}:`, error);
             }
         }
 
-        // Taguer les membres valides avec leurs pseudos
+        // Afficher les membres valides avec leurs prénoms
         if (validAuthors.length > 0) {
-            bot.sendMessage(chatId, "Voici tous les membres actifs depuis mon arrivée :");
-            const mentions = validAuthors.map(({ id, username }) => {
-                const displayName = username ? `@${username}` : username; // Utilise le pseudo ou le nom
-                return `<a href="tg://user?id=${id}">${displayName}</a>`;
+            bot.sendMessage(chatId, "Voici tous les utilisateurs actifs :");
+            const mentions = validAuthors.map(({ id, firstName }) => {
+                return `<a href="tg://user?id=${id}">${firstName}</a>`;
             }).join(', ');
 
             const message = `${mentions}`;
             await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
         } else {
-            bot.sendMessage(chatId, "Aucun auteur valide à taguer.");
+            bot.sendMessage(chatId, "Aucun utilisateur actif à afficher.");
         }
     } else {
-        bot.sendMessage(chatId, "Aucun auteur à taguer.");
+        bot.sendMessage(chatId, "Aucun utilisateur actif à afficher.");
     }
 });
