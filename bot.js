@@ -13,6 +13,7 @@ let onQuiz = false; // Indique si un quiz est en cours
 
 // Récupérer l'ID du Game Master depuis .env
 const defaultGameMasterId = process.env.DEFAULT_GAME_MASTER_ID1;
+const defaultGameMasterId1 = process.env.DEFAULT_GAME_MASTER_ID2;
 
 // Ajouter le Game Master par défaut
 if (defaultGameMasterId) {
@@ -20,6 +21,13 @@ if (defaultGameMasterId) {
     console.log(`Game Master par défaut ajouté: ${defaultGameMasterId}`);
 } else {
     console.error("Aucun ID de Game Master par défaut trouvé dans .env");
+}
+
+if (defaultGameMasterId1) {
+    gameMasters.add(defaultGameMasterId1);
+    console.log(`Game Master prime par défaut ajouté: ${defaultGameMasterId}`);
+} else {
+    console.error("Aucun ID de Game Master prime par défaut trouvé dans .env");
 }
 
 // Log de démarrage
