@@ -14,6 +14,7 @@ let onQuiz = false; // Indique si un quiz est en cours
 // Récupérer l'ID du Game Master depuis .env
 const defaultGameMasterId = process.env.DEFAULT_GAME_MASTER_ID1;
 const defaultGameMasterId1 = process.env.DEFAULT_GAME_MASTER_ID2;
+const defaultGameMasterId2 = process.env.DEFAULT_GAME_MASTER_ID3;
 
 // Ajouter le Game Master par défaut
 if (defaultGameMasterId) {
@@ -22,12 +23,17 @@ if (defaultGameMasterId) {
 } else {
     console.error("Aucun ID de Game Master par défaut trouvé dans .env");
 }
-
 if (defaultGameMasterId1) {
     gameMasters.add(defaultGameMasterId1);
-    console.log(`Game Master prime par défaut ajouté: ${defaultGameMasterId1}`);
+    console.log(`Game Master par défaut ajouté: ${defaultGameMasterId1}`);
 } else {
-    console.error("Aucun ID de Game Master prime par défaut trouvé dans .env");
+    console.error("Aucun ID de Game Master par défaut trouvé dans .env");
+}
+if (defaultGameMasterId2) {
+    gameMasters.add(defaultGameMasterId2);
+    console.log(`Game Master par défaut ajouté: ${defaultGameMasterId2}`);
+} else {
+    console.error("Aucun ID de Game Master par défaut trouvé dans .env");
 }
 
 // Log de démarrage
@@ -73,8 +79,11 @@ bot.onText(/\/stopsaving(@FGameFra_bot)?/, (msg) => {
 bot.on('message', (msg) => {
     const userId = msg.from.id;
 
+    // Vérifier si le message est en privé
+    const isPrivateChat = msg.chat.type === 'private';
+
     // Ignore les commandes et ne sauvegarde que les messages de texte normaux
-    if (isSaving && gameMasters.has(userId.toString()) && msg.text && !msg.text.startsWith('/')) {
+    if (isSaving && gameMasters.has(userId.toString()) && isPrivateChat && msg.text && !msg.text.startsWith('/')) {
         const question = msg.text;
         currentQuestions.push(question);
         bot.sendMessage(userId, `✅ Question sauvegardée : ${question}`);
@@ -82,11 +91,11 @@ bot.on('message', (msg) => {
     }
 
     // Si le quiz est en cours, poser la question suivante
-    /*if (onQuiz && currentQuestionIndex < currentQuestions.length) {
+    if (onQuiz && currentQuestionIndex < currentQuestions.length) {
         const questionToAsk = currentQuestions[currentQuestionIndex];
         bot.sendMessage(msg.chat.id, `🔍 Question à poser : ${questionToAsk}`);
         currentQuestionIndex++;
-    }*/
+    }
 });
 
 // Commande pour commencer le quiz
