@@ -25,7 +25,7 @@ if (defaultGameMasterId) {
 
 if (defaultGameMasterId1) {
     gameMasters.add(defaultGameMasterId1);
-    console.log(`Game Master prime par défaut ajouté: ${defaultGameMasterId}`);
+    console.log(`Game Master prime par défaut ajouté: ${defaultGameMasterId1}`);
 } else {
     console.error("Aucun ID de Game Master prime par défaut trouvé dans .env");
 }
