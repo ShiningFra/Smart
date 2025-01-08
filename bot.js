@@ -1,79 +1,49 @@
 const TelegramBot = require('node-telegram-bot-api');
-const token = '7635135897:AAHmj4Nmanh15Zavn5tnSqkdedRbRwH9zsU';  // Remplacez par votre token de bot
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
+const fileType = require('file-type');
+
+// Remplace 'YOUR_TELEGRAM_BOT_TOKEN' par le token que tu as reçu de BotFather
+const token = '7884169550:AAFmOQ3tqa12tdO0EZ5_XWLQpkMaL2EhI60';
 const bot = new TelegramBot(token, { polling: true });
+// Répertoire pour sauvegarder les stickers
+const stickerDir = path.join(__dirname, 'sticker1');
 
-// Commande pour démarrer la sélection des couples
-bot.onText(/\/chooseCouples/, async (msg) => {
-  const chatId = msg.chat.id;
+// Créer le répertoire si nécessaire
+if (!fs.existsSync(stickerDir)) {
+    fs.mkdirSync(stickerDir);
+}
 
-  try {
-    // Récupérer la liste des membres du groupe
-    const members = await getAllMembers(chatId);
-    if (members.length < 2) {
-      bot.sendMessage(chatId, 'Pas assez de membres dans le groupe pour former un couple.');
-      return;
+// Écouter les stickers reçus
+bot.on('sticker', async (msg) => {
+    const fileId = msg.sticker.file_id;
+
+    // Récupérer les informations sur le fichier
+    const file = await bot.getFile(fileId);
+    const filePath = file.file_path;
+    const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
+    
+    // Nom de fichier sans extension
+    const fileName = path.join(stickerDir, fileId); // Utiliser fileId comme nom de fichier
+
+    try {
+        // Télécharger le sticker
+        const response = await axios({
+            method: 'get',
+            url,
+            responseType: 'arraybuffer' // Utiliser arraybuffer pour analyser le type de fichier
+        });
+
+        // Déterminer le type de fichier
+        const type = await fileType.fromBuffer(response.data); // Utilisation asynchrone
+        const extension = type ? type.ext : 'bin'; // Utiliser 'bin' par défaut si le type est inconnu
+
+        // Sauvegarder le fichier avec l'extension appropriée
+        const completeFileName = `${fileName}.${extension}`;
+        fs.writeFileSync(completeFileName, response.data);
+        console.log(`Sticker sauvegardé sous: ${completeFileName}`);
+    } catch (error) {
+        console.error('Erreur lors du téléchargement du sticker:', error);
     }
-
-    // Mélanger la liste des membres pour choisir au hasard
-    const shuffledMembers = members.sort(() => 0.5 - Math.random());
-
-    // Choisir les couples (en prenant deux membres à la fois)
-    const couples = [];
-    while (shuffledMembers.length >= 2) {
-      const first = shuffledMembers.pop();
-      const second = shuffledMembers.pop();
-      couples.push([first, second]);
-    }
-
-    // Envoyer les couples formés au groupe
-    let message = 'Voici les couples choisis au hasard :\n';
-    couples.forEach((couple, index) => {
-      message += `Couple ${index + 1}: @${getUserNameById(couple[0])} et @${getUserNameById(couple[1])}\n`;
-    });
-
-    bot.sendMessage(chatId, message);
-
-  } catch (error) {
-    console.error('Erreur lors de la récupération des membres:', error);
-    bot.sendMessage(chatId, 'Une erreur est survenue lors de la sélection des couples.');
-  }
 });
-
-// Fonction pour obtenir tous les membres du groupe
-async function getAllMembers(chatId) {
-  const members = [];
-  let offset = 0;
-  const limit = 200;  // Nombre maximum de membres récupérés à la fois
-
-  try {
-    // Récupérer les membres du groupe par lots
-    while (true) {
-      const chatMembers = await bot.getChatMembers(chatId, offset, limit);
-      if (chatMembers.length === 0) break;
-      
-      chatMembers.forEach(member => {
-        members.push(member.user.id);
-      });
-
-      // Mettre à jour l'offset pour obtenir les membres suivants
-      offset += chatMembers.length;
-    }
-  } catch (error) {
-    console.error('Erreur lors de la récupération des membres:', error);
-  }
-
-  return members;
-}
-
-// Fonction pour obtenir le nom d'utilisateur d'un membre par son ID
-async function getUserNameById(userId) {
-  try {
-    const user = await bot.getUserProfilePhotos(userId);
-    return user.username || 'utilisateur sans nom d\'utilisateur';
-  } catch (error) {
-    return 'utilisateur non trouvé';
-  }
-}
-
-// Démarre le bot
-console.log('Bot Telegram en ligne...');
