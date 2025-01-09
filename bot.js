@@ -176,6 +176,12 @@ bot.onText(/\/join(@FGameFra_bot)?/, (msg) => {
 
     if (!joinedUsers.has(userId)) {
         joinedUsers.add(userId);
+        users[userId] = {
+            points: 0,
+            level: 1,
+            firstName: msg.from.first_name || "Inconnu", // Récupérer le prénom
+            username: msg.from.username || "Inconnu" // Récupérer le nom d'utilisateur
+        };
         bot.sendMessage(msg.chat.id, `✅ Vous avez rejoint le quiz !`);
     } else {
         bot.sendMessage(msg.chat.id, `🚫 Vous êtes déjà inscrit au quiz.`);
