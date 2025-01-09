@@ -222,7 +222,7 @@ bot.onText(/\/win/, (msg) => {
     answeredQuestions.add(currentQuestionIndex);
     bot.sendMessage(msg.chat.id, `🏆 WINNER : ${msg.reply_to_message.from.first_name} [@${msg.reply_to_message.from.username}] 🎉`, {
         reply_to_message_id: msg.message_id
-    });
+    }); 
 });
 
 // Commande pour passer à la question suivante
