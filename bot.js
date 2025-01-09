@@ -6,10 +6,12 @@ const bot = new TelegramBot(token, { polling: true });
 
 const users = {}; // Stockage des utilisateurs et leurs stats
 const gameMasters = new Set(); // Stockage des Game Masters
+const joinedUsers = new Set(); // Stockage des utilisateurs ayant rejoint
 let currentQuestions = []; // Tableau pour stocker les questions
 let isSaving = false; // Indique si nous sommes en mode d'enregistrement
 let currentQuestionIndex = 0; // Suivi de l'index de la question actuelle
 let onQuiz = false; // Indique si un quiz est en cours
+let answeredQuestions = new Set(); // Stockage des questions déjà répondues
 
 // Récupérer l'ID du Game Master depuis .env
 const defaultGameMasterId = process.env.DEFAULT_GAME_MASTER_ID1;
@@ -89,13 +91,6 @@ bot.on('message', (msg) => {
         bot.sendMessage(userId, `✅ Question sauvegardée : ${question}`);
         bot.sendMessage(userId, "👉 Veuillez envoyer la prochaine question en privé.");
     }
-
-    // Si le quiz est en cours, poser la question suivante
-    /*if (onQuiz && currentQuestionIndex < currentQuestions.length) {
-        const questionToAsk = currentQuestions[currentQuestionIndex];
-        bot.sendMessage(msg.chat.id, `🔍 Question à poser : ${questionToAsk}`);
-        currentQuestionIndex++;
-    }*/
 });
 
 // Commande pour commencer le quiz
@@ -118,6 +113,7 @@ bot.onText(/\/quiz(@FGameFra_bot)?/, (msg) => {
     currentQuestions = currentQuestions.sort(() => 0.5 - Math.random());
     currentQuestionIndex = 0;
     onQuiz = true;
+    answeredQuestions.clear(); // Réinitialiser les questions répondues
 
     bot.sendMessage(msg.chat.id, "🎉 Le quiz a commencé ! Utilisez /next pour passer à la question suivante.");
 });
@@ -135,50 +131,6 @@ bot.onText(/\/stopquiz(@FGameFra_bot)?/, (msg) => {
     onQuiz = false; // Fin du quiz
     currentQuestions = []; // Réinitialiser les questions
     bot.sendMessage(msg.chat.id, "🛑 Le quiz a été arrêté. Merci d'avoir participé !");
-});
-
-// Commande pour valider une réponse
-bot.onText(/\/win/, (msg) => {
-    const userId = msg.reply_to_message.from.id; // ID de l'utilisateur qui a répondu
-
-    if (onQuiz) {
-        bot.sendMessage(msg.chat.id, `🏆 WINNER : ${msg.reply_to_message.from.first_name} [@${msg.reply_to_message.from.username}] 🎉`, {
-            reply_to_message_id: msg.message_id
-        });
-    } else {
-        bot.sendMessage(msg.chat.id, "🚫 Aucun quiz en cours pour valider une réponse.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-});
-
-// Commande pour passer à la question suivante
-bot.onText(/\/next(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut passer à la question suivante.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    if (!onQuiz) {
-        return bot.sendMessage(msg.chat.id, "🚫 Aucun quiz en cours.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    if (currentQuestionIndex < currentQuestions.length) {
-        const questionToAsk = currentQuestions[currentQuestionIndex];
-        bot.sendMessage(msg.chat.id, `🔍 Question suivante : ${questionToAsk}`);
-        currentQuestionIndex++;
-    } else {
-        bot.sendMessage(msg.chat.id, "🏁 THE END. Merci d'avoir participé au quiz ! 🎊", {
-            reply_to_message_id: msg.message_id
-        });
-        onQuiz = false; // Fin du quiz
-        currentQuestions = []; // Réinitialiser les questions
-    }
 });
 
 // Commande pour promouvoir un utilisateur comme Game Master
@@ -216,6 +168,83 @@ bot.onText(/\/gamemasters(@FGameFra_bot)?/, (msg) => {
         reply_to_message_id: msg.message_id,
         disable_web_page_preview: true
     });
+});
+
+// Commande pour rejoindre le quiz
+bot.onText(/\/join(@FGameFra_bot)?/, (msg) => {
+    const userId = msg.from.id;
+
+    if (!joinedUsers.has(userId)) {
+        joinedUsers.add(userId);
+        bot.sendMessage(msg.chat.id, `✅ Vous avez rejoint le quiz !`);
+    } else {
+        bot.sendMessage(msg.chat.id, `🚫 Vous êtes déjà inscrit au quiz.`);
+    }
+});
+
+// Commande pour valider une réponse
+bot.onText(/\/win/, (msg) => {
+    const userId = msg.reply_to_message.from.id; // ID de l'utilisateur qui a répondu
+
+    if (!gameMasters.has(msg.from.id)) {
+        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut valider une réponse.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    if (!onQuiz) {
+        return bot.sendMessage(msg.chat.id, "🚫 Aucun quiz en cours pour valider une réponse.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    if (!joinedUsers.has(userId)) {
+        return bot.sendMessage(msg.chat.id, "🚫 Ce joueur n'est pas inscrit au quiz.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    if (answeredQuestions.has(currentQuestionIndex)) {
+        return bot.sendMessage(msg.chat.id, "🚫 Cette question a déjà été répondue.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    // Ajouter 5 points au joueur gagnant
+    addPoints(userId, 5);
+    answeredQuestions.add(currentQuestionIndex);
+    bot.sendMessage(msg.chat.id, `🏆 WINNER : ${msg.reply_to_message.from.first_name} [@${msg.reply_to_message.from.username}] 🎉`, {
+        reply_to_message_id: msg.message_id
+    });
+});
+
+// Commande pour passer à la question suivante
+bot.onText(/\/next(@FGameFra_bot)?/, (msg) => {
+    const userId = msg.from.id;
+
+    if (!gameMasters.has(userId.toString())) {
+        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut passer à la question suivante.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    if (!onQuiz) {
+        return bot.sendMessage(msg.chat.id, "🚫 Aucun quiz en cours.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    if (currentQuestionIndex < currentQuestions.length) {
+        const questionToAsk = currentQuestions[currentQuestionIndex];
+        bot.sendMessage(msg.chat.id, `🔍 Question suivante : ${questionToAsk}`);
+        currentQuestionIndex++;
+    } else {
+        bot.sendMessage(msg.chat.id, "🏁 THE END. Merci d'avoir participé au quiz ! 🎊", {
+            reply_to_message_id: msg.message_id
+        });
+        onQuiz = false; // Fin du quiz
+        currentQuestions = []; // Réinitialiser les questions
+    }
 });
 
 // Fonction pour ajouter des points à un utilisateur
