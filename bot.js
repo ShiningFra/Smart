@@ -268,6 +268,35 @@ function addPoints(userId, points) {
     }
 }
 
+// Commande pour afficher les joueurs, leurs points et leurs niveaux
+bot.onText(/\/players(@FGameFra_bot)?/, (msg) => {
+    const userId = msg.from.id;
+
+    if (!gameMasters.has(userId.toString())) {
+        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut voir la liste des joueurs.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    if (Object.keys(users).length === 0) {
+        return bot.sendMessage(msg.chat.id, "🚫 Aucun joueur n'a encore participé au quiz.", {
+            reply_to_message_id: msg.message_id
+        });
+    }
+
+    const playersList = Object.entries(users)
+        .map(([id, data]) => {
+            const usernameLink = data.username ? `[@${data.username}](tg://user?id=${id})` : data.firstName;
+            return `👤 ${usernameLink}: ${data.points} points, Niveau ${data.level}`;
+        })
+        .join('\n');
+
+    bot.sendMessage(msg.chat.id, `📊 Joueurs et leurs stats:\n${playersList}`, {
+        reply_to_message_id: msg.message_id,
+        parse_mode: 'Markdown' // Utiliser le mode Markdown pour les liens
+    });
+});
+
 // Gestion des erreurs de polling
 bot.on("polling_error", (error) => {
     console.error("Erreur de polling:", error);
