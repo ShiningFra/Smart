@@ -185,8 +185,9 @@ bot.onText(/\/join(@FGameFra_bot)?/, (msg) => {
 // Commande pour valider une réponse
 bot.onText(/\/win/, (msg) => {
     const userId = msg.reply_to_message.from.id; // ID de l'utilisateur qui a répondu
+    const Id = msg.from.id;
 
-    if (!gameMasters.has(msg.from.id)) {
+    if (!gameMasters.has(Id.toString())) {
         return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut valider une réponse.", {
             reply_to_message_id: msg.message_id
         });
