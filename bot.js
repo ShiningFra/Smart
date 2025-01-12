@@ -146,6 +146,9 @@ bot.onText(/\/makegod(@FGameFra_bot)?/, (msg) => {
     const replyToMessage = msg.reply_to_message;
     if (replyToMessage && replyToMessage.from) {
         const promotedUserId = replyToMessage.from.id;
+        if (gameMasters.has(promotedUserId.toString())) {
+            return bot.sendMessage(msg.chat.id, "🚫 Cet utilisateur est déjà un Game Master.");
+        }
         gameMasters.add(promotedUserId);
         bot.sendMessage(msg.chat.id, `🎉 L'utilisateur ${replyToMessage.from.first_name} a été promu comme Game Master ! 🎊`);
     } else {
@@ -153,6 +156,7 @@ bot.onText(/\/makegod(@FGameFra_bot)?/, (msg) => {
     }
 });
 
+// Commande pour afficher les Game Masters
 // Commande pour afficher les Game Masters
 bot.onText(/\/gamemasters(@FGameFra_bot)?/, (msg) => {
     const userId = msg.from.id;
@@ -163,16 +167,20 @@ bot.onText(/\/gamemasters(@FGameFra_bot)?/, (msg) => {
         });
     }
 
-    const mastersList = Array.from(gameMasters).map(id => `tg://user?id=${id}`).join(', ');
+    const mastersList = Array.from(gameMasters).map(id => `<a href="tg://user?id=${id}">${id}</a>`).join(', ');
     bot.sendMessage(msg.chat.id, `👥 Game Masters: ${mastersList}`, {
         reply_to_message_id: msg.message_id,
-        disable_web_page_preview: true
+        parse_mode: 'HTML' // Utiliser le mode HTML pour les liens
     });
 });
 
 // Commande pour rejoindre le quiz
 bot.onText(/\/join(@FGameFra_bot)?/, (msg) => {
     const userId = msg.from.id;
+
+    if (gameMasters.has(userId.toString())) {
+        return bot.sendMessage(msg.chat.id, "🚫 Les Game Masters ne peuvent pas rejoindre le quiz.");
+    }
 
     if (!joinedUsers.has(userId)) {
         joinedUsers.add(userId);
@@ -292,14 +300,14 @@ bot.onText(/\/players(@FGameFra_bot)?/, (msg) => {
 
     const playersList = Object.entries(users)
         .map(([id, data]) => {
-            const usernameLink = data.username ? `[@${data.username}](tg://user?id=${id})` : data.firstName;
+            const usernameLink = data.username ? `<a href="tg://user?id=${id}">${data.firstName}</a>` : data.firstName;
             return `👤 ${usernameLink}: ${data.points} points, Niveau ${data.level}`;
         })
         .join('\n');
 
     bot.sendMessage(msg.chat.id, `📊 Joueurs et leurs stats:\n${playersList}`, {
         reply_to_message_id: msg.message_id,
-        parse_mode: 'Markdown' // Utiliser le mode Markdown pour les liens
+        parse_mode: 'HTML' // Utiliser le mode HTML pour les liens
     });
 });
 
