@@ -1,317 +1,274 @@
 const TelegramBot = require('node-telegram-bot-api');
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
 require('dotenv').config();
 
-const token = process.env.TELEGRAM_BOT_TOKEN1;
-const bot = new TelegramBot(token, { polling: true });
 
-const users = {}; // Stockage des utilisateurs et leurs stats
-const gameMasters = new Set(); // Stockage des Game Masters
-const joinedUsers = new Set(); // Stockage des utilisateurs ayant rejoint
-let currentQuestions = []; // Tableau pour stocker les questions
-let isSaving = false; // Indique si nous sommes en mode d'enregistrement
-let currentQuestionIndex = 0; // Suivi de l'index de la question actuelle
-let onQuiz = false; // Indique si un quiz est en cours
-let answeredQuestions = new Set(); // Stockage des questions déjà répondues
+const BOT_TOKEN = process.env.BOT_TOKEN;
 
-// Récupérer l'ID du Game Master depuis .env
-const defaultGameMasterId = process.env.DEFAULT_GAME_MASTER_ID1;
-const defaultGameMasterId1 = process.env.DEFAULT_GAME_MASTER_ID2;
-const defaultGameMasterId2 = process.env.DEFAULT_GAME_MASTER_ID3;
-
-// Ajouter le Game Master par défaut
-if (defaultGameMasterId) {
-    gameMasters.add(defaultGameMasterId);
-    console.log(`Game Master par défaut ajouté: ${defaultGameMasterId}`);
-} else {
-    console.error("Aucun ID de Game Master par défaut trouvé dans .env");
-}
-if (defaultGameMasterId1) {
-    gameMasters.add(defaultGameMasterId1);
-    console.log(`Game Master par défaut ajouté: ${defaultGameMasterId1}`);
-} else {
-    console.error("Aucun ID de Game Master par défaut trouvé dans .env");
-}
-if (defaultGameMasterId2) {
-    gameMasters.add(defaultGameMasterId2);
-    console.log(`Game Master par défaut ajouté: ${defaultGameMasterId2}`);
-} else {
-    console.error("Aucun ID de Game Master par défaut trouvé dans .env");
+if (!BOT_TOKEN) {
+    console.error('❌ BOT_TOKEN manquant dans le fichier .env');
+    process.exit(1);
 }
 
-// Log de démarrage
-console.log("Bot démarré. En attente de messages...");
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Fonction pour obtenir la mention des Game Masters par ID
-function getGameMasterMentions() {
-    return Array.from(gameMasters).map(id => `tg://user?id=${id}`).join(', ');
+
+const TEMP_DIR = './temp';
+if (!fs.existsSync(TEMP_DIR)) {
+    fs.mkdirSync(TEMP_DIR);
 }
 
-// Commande pour commencer à enregistrer des questions
-bot.onText(/\/startsaving(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
 
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut commencer à enregistrer des questions.", {
-            reply_to_message_id: msg.message_id
+const downloadFile = (url, filepath) => {
+    return new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(filepath);
+        https.get(url, (response) => {
+            response.pipe(file);
+            file.on('finish', () => {
+                file.close();
+                resolve(filepath);
+            });
+        }).on('error', (err) => {
+            fs.unlink(filepath, () => {}); // Supprimer le fichier en cas d'erreur
+            reject(err);
         });
-    }
-
-    isSaving = true;
-    currentQuestions = [];
-    currentQuestionIndex = 0;
-
-    bot.sendMessage(msg.chat.id, "📝 Enregistrement des questions commencé. Envoyez votre question en privé.");
-});
-
-// Commande pour arrêter l'enregistrement des questions
-bot.onText(/\/stopsaving(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut arrêter l'enregistrement des questions.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    isSaving = false;
-    bot.sendMessage(msg.chat.id, "✅ Enregistrement des questions arrêté. Questions sauvegardées :\n" + currentQuestions.join('\n'));
-});
-
-// Écoute des messages pour enregistrer les questions
-bot.on('message', (msg) => {
-    const userId = msg.from.id;
-
-    // Vérifier si le message est en privé
-    const isPrivateChat = msg.chat.type === 'private';
-
-    // Ignore les commandes et ne sauvegarde que les messages de texte normaux
-    if (isSaving && gameMasters.has(userId.toString()) && isPrivateChat && msg.text && !msg.text.startsWith('/')) {
-        const question = msg.text;
-        currentQuestions.push(question);
-        bot.sendMessage(userId, `✅ Question sauvegardée : ${question}`);
-        bot.sendMessage(userId, "👉 Veuillez envoyer la prochaine question en privé.");
-    }
-});
-
-// Commande pour commencer le quiz
-bot.onText(/\/quiz(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut démarrer un quiz.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    if (currentQuestions.length === 0) {
-        return bot.sendMessage(msg.chat.id, "🚫 Pas de questions disponibles. Utilisez /startsaving pour ajouter des questions.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    // Mélanger les questions
-    currentQuestions = currentQuestions.sort(() => 0.5 - Math.random());
-    currentQuestionIndex = 0;
-    onQuiz = true;
-    answeredQuestions.clear(); // Réinitialiser les questions répondues
-
-    bot.sendMessage(msg.chat.id, "🎉 Le quiz a commencé ! Utilisez /next pour passer à la question suivante.");
-});
-
-// Commande pour arrêter le quiz
-bot.onText(/\/stopquiz(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut arrêter le quiz.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    onQuiz = false; // Fin du quiz
-    currentQuestions = []; // Réinitialiser les questions
-    bot.sendMessage(msg.chat.id, "🛑 Le quiz a été arrêté. Merci d'avoir participé !");
-});
-
-// Commande pour promouvoir un utilisateur comme Game Master
-bot.onText(/\/makegod(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut promouvoir un utilisateur.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    const replyToMessage = msg.reply_to_message;
-    if (replyToMessage && replyToMessage.from) {
-        const promotedUserId = replyToMessage.from.id;
-        if (gameMasters.has(promotedUserId.toString())) {
-            return bot.sendMessage(msg.chat.id, "🚫 Cet utilisateur est déjà un Game Master.");
-        }
-        gameMasters.add(promotedUserId);
-        bot.sendMessage(msg.chat.id, `🎉 L'utilisateur ${replyToMessage.from.first_name} a été promu comme Game Master ! 🎊`);
-    } else {
-        bot.sendMessage(msg.chat.id, "🚫 Veuillez répondre à un message d'un utilisateur pour le promouvoir.");
-    }
-});
-
-// Commande pour afficher les Game Masters
-// Commande pour afficher les Game Masters
-bot.onText(/\/gamemasters(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut voir la liste des Game Masters.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    const mastersList = Array.from(gameMasters).map(id => `<a href="tg://user?id=${id}">${id}</a>`).join(', ');
-    bot.sendMessage(msg.chat.id, `👥 Game Masters: ${mastersList}`, {
-        reply_to_message_id: msg.message_id,
-        parse_mode: 'HTML' // Utiliser le mode HTML pour les liens
     });
-});
+};
 
-// Commande pour rejoindre le quiz
-bot.onText(/\/join(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
 
-    if (gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "🚫 Les Game Masters ne peuvent pas rejoindre le quiz.");
-    }
+const cleanupFiles = (...files) => {
+    files.forEach(file => {
+        if (fs.existsSync(file)) {
+            fs.unlinkSync(file);
+        }
+    });
+};
 
-    if (!joinedUsers.has(userId)) {
-        joinedUsers.add(userId);
-        users[userId] = {
-            points: 0,
-            level: 1,
-            firstName: msg.from.first_name || "Inconnu", // Récupérer le prénom
-            username: msg.from.username || "Inconnu" // Récupérer le nom d'utilisateur
-        };
-        bot.sendMessage(msg.chat.id, `✅ Vous avez rejoint le quiz !`);
-    } else {
-        bot.sendMessage(msg.chat.id, `🚫 Vous êtes déjà inscrit au quiz.`);
-    }
-});
 
-// Commande pour valider une réponse
-bot.onText(/\/win/, (msg) => {
-    const userId = msg.reply_to_message.from.id; // ID de l'utilisateur qui a répondu
-    const Id = msg.from.id;
+let conversionsCount = 0;
+const startTime = Date.now();
 
-    if (!gameMasters.has(Id.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut valider une réponse.", {
-            reply_to_message_id: msg.message_id
+
+const convertToVoiceNote = async (chatId, fileId, fileName) => {
+    try {
+        
+        const fileLink = await bot.getFileLink(fileId);
+        
+        
+        const timestamp = Date.now();
+        const tempPath = path.join(TEMP_DIR, `temp_${timestamp}.ogg`);
+        
+        
+        await downloadFile(fileLink, tempPath);
+        
+        
+
+        await bot.sendVoice(chatId, tempPath, {
+            caption: `🎙️ Voice note convertie depuis: ${fileName || 'fichier audio'}`,
+            duration: undefined // Telegram calculera automatiquement
         });
+        
+        
+        cleanupFiles(tempPath);
+        
+        
+        conversionsCount++;
+        
+        return true;
+    } catch (error) {
+        console.error('Erreur lors de la conversion:', error);
+        return false;
     }
+};
 
-    if (!onQuiz) {
-        return bot.sendMessage(msg.chat.id, "🚫 Aucun quiz en cours pour valider une réponse.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
 
-    if (!joinedUsers.has(userId)) {
-        return bot.sendMessage(msg.chat.id, "🚫 Ce joueur n'est pas inscrit au quiz.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    if (answeredQuestions.has(currentQuestionIndex)) {
-        return bot.sendMessage(msg.chat.id, "🚫 Cette question a déjà été répondue.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    // Ajouter 5 points au joueur gagnant
-    addPoints(userId, 5);
-    answeredQuestions.add(currentQuestionIndex);
-    bot.sendMessage(msg.chat.id, `🏆 WINNER : ${msg.reply_to_message.from.first_name} [@${msg.reply_to_message.from.username}] 🎉`, {
-        reply_to_message_id: msg.message_id
-    }); 
-});
-
-// Commande pour passer à la question suivante
-bot.onText(/\/next(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut passer à la question suivante.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    if (!onQuiz) {
-        return bot.sendMessage(msg.chat.id, "🚫 Aucun quiz en cours.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    if (currentQuestionIndex < currentQuestions.length) {
-        const questionToAsk = currentQuestions[currentQuestionIndex];
-        bot.sendMessage(msg.chat.id, `🔍 Question suivante : ${questionToAsk}`);
-        currentQuestionIndex++;
-    } else {
-        bot.sendMessage(msg.chat.id, "🏁 THE END. Merci d'avoir participé au quiz ! 🎊", {
-            reply_to_message_id: msg.message_id
-        });
-        onQuiz = false; // Fin du quiz
-        currentQuestions = []; // Réinitialiser les questions
+bot.on('audio', async (msg) => {
+    const chatId = msg.chat.id;
+    const audio = msg.audio;
+    
+    try {
+        // Envoyer un message de traitement
+        const processingMsg = await bot.sendMessage(chatId, '🎵 Conversion en cours...');
+        
+        
+        const success = await convertToVoiceNote(chatId, audio.file_id, audio.title || audio.file_name);
+        
+        
+        await bot.deleteMessage(chatId, processingMsg.message_id);
+        
+        if (!success) {
+            await bot.sendMessage(chatId, '❌ Erreur lors de la conversion. Réessaie avec un autre fichier.');
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors du traitement audio:', error);
+        await bot.sendMessage(chatId, '❌ Erreur lors de la conversion. Assure-toi que le fichier est un audio valide.');
     }
 });
 
-// Fonction pour ajouter des points à un utilisateur
-function addPoints(userId, points) {
-    if (!users[userId]) {
-        users[userId] = { points: 0, level: 1 };
+
+bot.on('document', async (msg) => {
+    const chatId = msg.chat.id;
+    const document = msg.document;
+    
+    // Vérifier si c'est un fichier audio
+    const audioExtensions = ['.mp3', '.wav', '.flac', '.aac', '.m4a', '.wma', '.ogg', '.opus'];
+    const isAudio = audioExtensions.some(ext => 
+        document.file_name?.toLowerCase().endsWith(ext)
+    ) || document.mime_type?.startsWith('audio/');
+    
+    if (!isAudio) {
+        return; // Ne pas traiter si ce n'est pas un fichier audio
     }
-    users[userId].points += points;
+    
+    try {
+        // Envoyer un message de traitement
+        const processingMsg = await bot.sendMessage(chatId, '🎵 Conversion en cours...');
+        
+        // Convertir en voice note
+        const success = await convertToVoiceNote(chatId, document.file_id, document.file_name);
+        
+        // Supprimer le message de traitement
+        await bot.deleteMessage(chatId, processingMsg.message_id);
+        
+        if (!success) {
+            await bot.sendMessage(chatId, '❌ Erreur lors de la conversion. Réessaie avec un autre fichier.');
+        }
+        
+    } catch (error) {
+        console.error('Erreur lors du traitement document:', error);
+        await bot.sendMessage(chatId, '❌ Erreur lors de la conversion. Assure-toi que le fichier est un audio valide.');
+    }
+});
 
-    // Vérifier le niveau
-    const currentPoints = users[userId].points;
-    const currentLevel = users[userId].level;
 
-    if (currentPoints >= currentLevel * 30) {
-        users[userId].level += 1;
-        bot.sendMessage(
-            users[userId].chatId, 
-            `🎉 Félicitations ${users[userId].firstName}! Vous avez atteint le niveau ${users[userId].level} ! 🎊`
+bot.on('voice', async (msg) => {
+    const chatId = msg.chat.id;
+    
+    await bot.sendMessage(chatId, '🎙️ C\'est déjà une voice note ! Si tu veux la reconvertir, envoie-la comme fichier audio.');
+});
+
+
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    const welcomeMessage = `
+🎵 *Bot Convertisseur Audio vers Voice Note*
+
+Salut ! Je peux convertir tes fichiers audio en voice notes Telegram.
+
+*Comment utiliser :*
+• Envoie-moi un fichier audio (MP3, WAV, FLAC, AAC, etc.)
+• Je vais le convertir automatiquement en voice note
+• Tu recevras la voice note optimisée pour Telegram
+
+*Formats supportés :*
+MP3, WAV, FLAC, AAC, M4A, WMA, OGG, OPUS
+
+*Astuce :* Telegram fait la conversion automatiquement côté serveur, donc pas besoin d'outils externes !
+
+Envoie-moi ton fichier audio pour commencer ! 🎧
+    `;
+    
+    bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown' });
+});
+
+
+bot.onText(/\/help/, (msg) => {
+    const chatId = msg.chat.id;
+    const helpMessage = `
+🆘 *Aide - Bot Convertisseur Audio*
+
+*Commandes disponibles :*
+• /start - Démarrer le bot
+• /help - Afficher cette aide
+• /stats - Voir les statistiques
+
+*Utilisation :*
+1. Envoie-moi un fichier audio
+2. Attends la conversion (quelques secondes)
+3. Reçois ta voice note !
+
+*Formats supportés :*
+MP3, WAV, FLAC, AAC, M4A, WMA, OGG, OPUS
+
+*Limitations :*
+• Taille max : 50MB (limitation Telegram)
+• Durée recommandée : < 1 heure
+
+*Note :* Les fichiers sont automatiquement supprimés après conversion pour protéger ta vie privée.
+    `;
+    
+    bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+});
+
+// Commande de statistiques
+bot.onText(/\/stats/, (msg) => {
+    const chatId = msg.chat.id;
+    const uptime = Math.floor((Date.now() - startTime) / 1000);
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = uptime % 60;
+    
+    const statsMessage = `
+📊 *Statistiques du Bot*
+
+🔄 Conversions réalisées : ${conversionsCount}
+⏱️ Temps de fonctionnement : ${hours}h ${minutes}m ${seconds}s
+🤖 Statut : Opérationnel
+
+*Merci d'utiliser ce bot !* 🎵
+    `;
+    
+    bot.sendMessage(chatId, statsMessage, { parse_mode: 'Markdown' });
+});
+
+
+bot.on('message', (msg) => {
+    const chatId = msg.chat.id;
+    
+    
+    if (msg.audio || msg.document || msg.voice || msg.text?.startsWith('/')) {
+        return;
+    }
+    
+    
+    if (msg.text) {
+        bot.sendMessage(chatId, 
+            '🎵 Salut ! Envoie-moi un fichier audio et je le convertirai en voice note.\n\n' +
+            'Utilise /help pour voir toutes les commandes disponibles.'
         );
     }
-}
-
-// Commande pour afficher les joueurs, leurs points et leurs niveaux
-bot.onText(/\/players(@FGameFra_bot)?/, (msg) => {
-    const userId = msg.from.id;
-
-    if (!gameMasters.has(userId.toString())) {
-        return bot.sendMessage(msg.chat.id, "⚠️ Seul un Game Master peut voir la liste des joueurs.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    if (Object.keys(users).length === 0) {
-        return bot.sendMessage(msg.chat.id, "🚫 Aucun joueur n'a encore participé au quiz.", {
-            reply_to_message_id: msg.message_id
-        });
-    }
-
-    const playersList = Object.entries(users)
-        .map(([id, data]) => {
-            const usernameLink = data.username ? `<a href="tg://user?id=${id}">${data.firstName}</a>` : data.firstName;
-            return `👤 ${usernameLink}: ${data.points} points, Niveau ${data.level}`;
-        })
-        .join('\n');
-
-    bot.sendMessage(msg.chat.id, `📊 Joueurs et leurs stats:\n${playersList}`, {
-        reply_to_message_id: msg.message_id,
-        parse_mode: 'HTML' // Utiliser le mode HTML pour les liens
-    });
 });
 
-// Gestion des erreurs de polling
-bot.on("polling_error", (error) => {
-    console.error("Erreur de polling:", error);
+
+bot.on('polling_error', (error) => {
+    console.error('Erreur de polling:', error);
+});
+
+console.log('🤖 Bot démarré ! En attente de fichiers audio...');
+console.log(`📱 Nom du bot : @${bot.getMe().then(me => console.log(`Bot: ${me.username}`))}`);
+
+
+const cleanup = () => {
+    console.log('\n🧹 Nettoyage des fichiers temporaires...');
+    if (fs.existsSync(TEMP_DIR)) {
+        const files = fs.readdirSync(TEMP_DIR);
+        files.forEach(file => {
+            fs.unlinkSync(path.join(TEMP_DIR, file));
+        });
+    }
+};
+
+process.on('SIGINT', () => {
+    cleanup();
+    console.log('👋 Bot arrêté proprement');
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    cleanup();
+    console.log('👋 Bot arrêté proprement');
+    process.exit(0);
 });
